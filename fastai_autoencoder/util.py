@@ -52,14 +52,18 @@ class ConvBnRelu(nn.Module):
                  bn = nn.BatchNorm2d, act_fn = nn.ReLU,**kwargs):
         super(ConvBnRelu,self).__init__()
         self.conv = conv(in_channels=in_channels,out_channels=out_channels,
-                         kernel_size=kernel_size,stride = stride, bias=bias)
+                         kernel_size=kernel_size,stride = stride, bias=bias,**kwargs)
 
         if bn:
             self.bn = bn(out_channels)
             # If there is a bn we remove the bias term of the Conv
             zero_bias(self.conv)
+        else:
+            self.bn = None
         if act_fn:
             self.act_fn = act_fn(inplace = True)
+        else:
+            self.act_fn = None
     def forward(self,x):
         output = self.conv(x)
         if self.bn:
