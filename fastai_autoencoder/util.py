@@ -5,61 +5,67 @@ from fastai.callbacks import Hooks
 from fastai.torch_core import flatten_model
 
 class DepthwiseConv(nn.Module):
-    def __init__(self,ni,activation,ks=3,stride=1,conv = nn.Conv2d,bn = None):
+
+    def __init__(self,in_channels,kernel_size=3,stride=1,bias=True,conv = nn.Conv2d,**kwargs):
         super(DepthwiseConv,self).__init__()
-        if bn:
-            self.conv = conv(ni,ni,kernel_size=ks,padding=ks //2,stride = stride,groups = ni, bias = False)
-            self.bn = bn(ni)
-        else:
-            self.conv = conv(ni,ni,kernel_size=ks,padding=ks //2,stride = stride,groups = ni, bias = True)
-            self.bn = None
-        self.act_fn = activation
-    
+        self.conv = conv(in_channels=in_channels,out_channels=in_channels,kernel_size=kernel_size,
+                         padding=kernel_size //2,stride = stride,groups = in_channels, bias = bias)
+
     def forward(self,x):
-        output = self.act_fn(self.conv(x)) if not self.bn else self.act_fn(self.bn(self.conv(x)))
+        output = self.conv(x)
         return output
-    
-    @property
-    def bias(self): return self.conv.bias.data if not self.bn else self.bn.bias.data
-    
-    @bias.setter
-    def bias(self,v):
-        if not self.bn:
-            self.conv.bias.data = v
-        else:
-            self.bn.bias.data = v
-    
-    @property
-    def weight(self): return self.conv.weight
 
 class PointwiseConv(nn.Module):
-    def __init__(self,ni,nf,activation,conv = nn.Conv2d,bn = nn.BatchNorm2d):
+
+    def __init__(self,in_channels,out_channels,bias = True,conv = nn.Conv2d,**kwargs):
         super(PointwiseConv,self).__init__()
-        self.conv = conv(ni,nf,kernel_size=1,stride=1,padding=0,bias = False)
-        self.bn = bn(nf)
-        self.act_fn = activation
-        
+        self.conv = conv(in_channels=in_channels,out_channels=out_channels,kernel_size=1,
+                         stride=1,padding=0,bias = bias)
+
     def forward(self,x):
-        output = self.act_fn(self.bn(self.conv(x)))
+        output = self.conv(x)
         return output
-    
-    @property
-    def bias(self): return self.bn.bias
-    
-    @bias.setter
-    def bias(self,v) : self.bn.bias = v
-    
-    @property
-    def weight(self): return self.conv.weight
 
 class MobileConv(nn.Module):
-    def __init__(self,ni,nf,activation,ks=3,stride = 1,conv = nn.Conv2d,bn = nn.BatchNorm2d):
+
+    def __init__(self,in_channels,out_channels,kernel_size=3,stride = 1,bias = True,conv = nn.Conv2d,
+                dw_conv = DepthwiseConv, pw_conv = PointwiseConv,**kwargs):
         super(MobileConv,self).__init__()
-        self.depth_conv = DepthwiseConv(ni,activation,ks,stride,conv,bn)
-        self.point_conv = PointwiseConv(ni,nf,activation,conv,bn)
-    
+        self.depth_conv = dw_conv(in_channels,kernel_size,stride,bias,conv)
+        self.point_conv = pw_conv(in_channels,out_channels,bias,conv,)
+
     def forward(self,x):
         output = self.point_conv(self.depth_conv(x))
+        return output
+
+def zero_bias(conv_layer,conv_type = nn.Conv2d):
+    for c in conv_layer.children():
+        if isinstance(c,conv_type):
+            c.bias.requires_grad = False
+            c.bias.data = torch.zeros_like(c.bias)
+        else:
+            zero_bias(c)
+
+class ConvBnRelu(nn.Module):
+
+    def __init__(self,in_channels,out_channels,kernel_size = 3, stride = 1, bias = True, conv = nn.Conv2d,
+                 bn = nn.BatchNorm2d, act_fn = nn.ReLU,**kwargs):
+        super(ConvBnRelu,self).__init__()
+        self.conv = conv(in_channels=in_channels,out_channels=out_channels,
+                         kernel_size=kernel_size,stride = stride, bias=bias)
+
+        if bn:
+            self.bn = bn(out_channels)
+            # If there is a bn we remove the bias term of the Conv
+            zero_bias(self.conv)
+        if act_fn:
+            self.act_fn = act_fn(inplace = True)
+    def forward(self,x):
+        output = self.conv(x)
+        if self.bn:
+            output = self.bn(output)
+        if self.act_fn:
+            output = self.act_fn(output)
         return output
 
 def register_stats(m,i,o):

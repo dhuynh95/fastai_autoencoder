@@ -3,9 +3,6 @@ from fastai.basic_data import DataBunch, DatasetType
 from fastai.basic_train import get_preds
 from fastai.callback import CallbackHandler
 
-from fastai_autoencoder.decoder import Decoder
-from fastai_autoencoder.encoder import Encoder
-from fastai_autoencoder.bottleneck import VAEBottleneck
 from fastai_autoencoder.callback import ReplaceTargetCallback, VAEHook
 
 import torch.nn as nn
@@ -16,7 +13,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class AutoEncoderLearner(Learner):
-    def __init__(self,data:DataBunch,rec_loss,enc:Encoder,bn,dec:Decoder,**kwargs):
+    def __init__(self,data:DataBunch,rec_loss,enc:nn.Module,bn:nn.Module,dec:nn.Module,**kwargs):
         self.enc = enc
         self.bn = bn
         self.dec = dec
