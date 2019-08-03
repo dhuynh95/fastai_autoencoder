@@ -1,7 +1,7 @@
 from fastai.callbacks import LearnerCallback
 from fastai.basic_train import Learner
 from fastai.callbacks.hooks import HookCallback
-from fastai_autoencoder.model import VAELinear, BayesianLinear
+from fastai_autoencoder.model import VAELinear
 import torch.nn as nn
 
 def get_layer(m,buffer,layer):
