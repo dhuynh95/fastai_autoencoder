@@ -28,41 +28,40 @@ class ReplaceTargetCallback(LearnerCallback):
 class VAEHook(HookCallback):
     """Hook to register the parameters of the latents during the forward pass to compute the KL term of the VAE"""
     
-    def __init__(self, learn:Learner,beta = 1,do_remove:bool=True):
+    def __init__(self, learn,beta = 1,do_remove:bool=True):
         super().__init__(learn)
         
         # We look for the VAE bottleneck layer
         self.learn = learn
         self.beta = beta
-        self.kl = []
-        self.l = []
+        
+        self.loss = []
+        
         buffer = []
         get_layer(learn.model,buffer,VAELinear)
         if not buffer:
             raise NotImplementedError("No Bayesian Linear found")
+            
         self.modules = buffer
         self.do_remove = do_remove
-        
-    def on_batch_begin(self,**kwargs):
-        # We set the 
-        self.learn.mu = []
-        self.learn.logvar = []
     
     def on_backward_begin(self,last_loss,**kwargs):
         n = len(self.learn.mu)
         # We add the KL term of each Bayesian Linear Layer
-        self.l.append(last_loss)
-        kl = 0
-        for i in range(n):
-            mu = self.learn.mu[i]
-            logvar = self.learn.logvar[i]
-            kl += self.beta * (-0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=-1).mean())
-        self.kl.append(kl)
-        last_loss += kl
-        return {"last_loss" : last_loss}
+        
+        
+        mu = self.learn.mu
+        logvar = self.learn.logvar
+        kl = self.beta * (-0.5 * (1 + logvar - mu.pow(2) - logvar.exp()).sum(dim=-1).mean())
+        
+        total_loss = last_loss + kl
+        self.loss.append({"rec_loss":last_loss.cpu().detach().numpy(),"kl_loss":kl.cpu().detach().numpy(),
+                          "total_loss":total_loss.cpu().detach().numpy()})
+        
+        return {"last_loss" : total_loss}
         
     def hook(self, m:nn.Module, i, o):
         "Save the latents of the bottleneck"
         mu,logvar = o
-        self.learn.mu.append(mu)
-        self.learn.logvar.append(logvar)
+        self.learn.mu = mu
+        self.learn.logvar = logvar
