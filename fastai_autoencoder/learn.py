@@ -13,11 +13,16 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 class AutoEncoderLearner(Learner):
-    def __init__(self,data:DataBunch,rec_loss,enc:nn.Module,bn:nn.Module,dec:nn.Module,**kwargs):
+    def __init__(self,data:DataBunch,rec_loss:str,enc:nn.Module,bn:nn.Module,dec:nn.Module,**kwargs):
         self.enc = enc
         self.bn = bn
         self.dec = dec
-        self.rec_loss = rec_loss
+        
+        assert rec_loss in ["mse","ce"],"Loss function must be mse or ce"
+        if rec_loss == "mse":
+            self.rec_loss = nn.MSELoss(reduction="none")
+        else:
+            self.rec_loss = nn.CrossEntropyLoss(reduction="none")
         self.encode = nn.Sequential(enc,bn)
         
         self.inferring = False
@@ -30,9 +35,14 @@ class AutoEncoderLearner(Learner):
         replace_cb = ReplaceTargetCallback(self)
         self.callbacks.append(replace_cb)
         
-    def loss_func(self,x,x_rec,**kwargs):
+    def loss_func(self,x_rec,x,**kwargs):
         bs = x.shape[0]
-        l = self.rec_loss(x, x_rec, reduction='none').view(bs, -1).sum(dim=-1).mean()
+        if isinstance(self.rec_loss,nn.MSELoss):
+            l = self.rec_loss(x, x_rec).view(bs, -1).sum(dim=-1).mean()
+        else:
+            # First we discretize x and turn it from (B,1,H,W) to (B,H,W)
+            x = (x * 256).long().squeeze(1)
+            l = self.rec_loss(x_rec,x).view(bs,-1).mean()
         return l
     
     def decode(self,z):
@@ -59,7 +69,10 @@ class AutoEncoderLearner(Learner):
             x,y = self.data.one_batch()
             
         x_rec = self.model(x)
-
+        
+        if isinstance(self.rec_loss,nn.CrossEntropyLoss):
+            x_rec = x_rec.argmax(dim = 1,keepdim = True)
+            
         x_rec = x_rec[i].squeeze(1)
         x = x[i].squeeze(1)
 
