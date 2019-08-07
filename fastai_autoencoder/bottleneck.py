@@ -2,6 +2,58 @@ import torch.nn as nn
 import torch
 from fastai_autoencoder.model import VAELayer
 
+class VQVAEBottleneck(nn.Module):
+    def __init__(self, num_embeddings, embedding_dim, commitment_cost=0.25):
+        super(VQVAEBottleneck, self).__init__()
+        
+        self._embedding_dim = embedding_dim
+        self._num_embeddings = num_embeddings
+        
+        self._embedding = nn.Embedding(self._num_embeddings, self._embedding_dim)
+        self._embedding.weight.data.uniform_(-1/self._num_embeddings, 1/self._num_embeddings)
+        self._commitment_cost = commitment_cost
+
+        self.inferring = False
+        
+    def forward(self, inputs):
+        # convert inputs from BxCxHxW to BxHxWxC
+
+        inputs = inputs.permute(0, 2, 3, 1).contiguous()
+        
+        # Store the BxHxWxC shape
+        input_shape = inputs.shape
+        
+        # Flatten input from BxHxWxC to BHWxC
+        flat_input = inputs.view(-1, self._embedding_dim)
+        
+        # Calculate distances between our input BHWxC and the embeddings KxC which outputs a BHWxK matrix
+        distances = (torch.sum(flat_input**2, dim=1, keepdim=True) 
+                    + torch.sum(self._embedding.weight**2, dim=1)
+                    - 2 * torch.matmul(flat_input, self._embedding.weight.t()))
+            
+        # Computing the closest BHWxK to BHWx1
+        encoding_indices = torch.argmin(distances, dim=1).unsqueeze(1)
+        
+        # If we are on inferrence mode we just output the discrete encoding in shape BxHxW
+        if self.inferring:
+            return encoding_indices.view(input_shape[:-1])
+        
+        # We reshape from BHWxC to BxHxWxC
+        quantized = self._embedding(encoding_indices).view(input_shape)
+        
+        # We compute the loss
+        e_latent_loss = torch.mean((quantized.detach() - inputs)**2)
+        q_latent_loss = torch.mean((quantized - inputs.detach())**2)
+        self.loss = q_latent_loss + self._commitment_cost * e_latent_loss
+        
+        # We switch the gradients
+        quantized = inputs + (quantized - inputs).detach()
+        
+        # We permute from BxHxWxC to BxCxHxW
+        quantized = quantized.permute(0,3,1,2).contiguous()
+        
+        return quantized
+
 class VAEBottleneck(nn.Module):
     def __init__(self,nfs:list,activation):
         super(VAEBottleneck,self).__init__()

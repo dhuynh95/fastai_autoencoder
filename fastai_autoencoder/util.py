@@ -50,7 +50,7 @@ def zero_bias(conv_layer,conv_type = nn.Conv2d):
 
 class ConvBnRelu(nn.Module):
 
-    def __init__(self,in_channels,out_channels,kernel_size = 3, stride = 1, bias = True, conv = nn.Conv2d,
+    def __init__(self,in_channels,out_channels,kernel_size = 3, stride = 1, bias = False, conv = nn.Conv2d,
                  bn = nn.BatchNorm2d, act_fn = nn.ReLU,**kwargs):
         super(ConvBnRelu,self).__init__()
         self.conv = conv(in_channels=in_channels,out_channels=out_channels,
@@ -58,8 +58,6 @@ class ConvBnRelu(nn.Module):
 
         if bn:
             self.bn = bn(out_channels)
-            # If there is a bn we remove the bias term of the Conv
-            zero_bias(self.conv)
         else:
             self.bn = None
         if act_fn:
