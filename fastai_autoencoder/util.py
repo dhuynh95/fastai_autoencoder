@@ -158,3 +158,14 @@ def get_pad_layer(pad_type):
     else:
         print('Pad type [%s] not recognized'%pad_type)
     return PadLayer
+                          
+class DenseBlock(nn.Module):
+    def __init__(self,in_channels,kernel_size=3,stride=1,padding=1,conv = ConvBnRelu,**kwargs):
+        super(DenseBlock,self).__init__()
+        self.conv = conv(in_channels=in_channels,out_channels=in_channels,kernel_size=kernel_size,
+                        stride=stride,padding=padding,**kwargs)
+        
+    def forward(self,x):
+        h = self.conv(x)
+        output = torch.cat([x,h],dim=1)
+        return output
