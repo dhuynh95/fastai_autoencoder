@@ -2,18 +2,6 @@ import torch.nn as nn
 import torch
 from fastai_autoencoder.util import PointwiseConv
 
-def create_decoder(nfs,ks,conv = nn.Conv2d,bn = nn.BatchNorm2d,act_fn = nn.ReLU):
-    n = len(nfs)
-    
-    # We add two channels to the first layer to include x and y channels
-    first_layer = ConvBnRelu(nfs[0] + 2, nfs[1],conv = PointwiseConv,bn=bn,act_fn=act_fn)
-
-    conv_layers = [first_layer] + [ConvBnRelu(nfs[i],nfs[i+1],kernel_size=ks[i-1],conv = conv,bn=bn,act_fn=act_fn)
-                                   for i in range(1,n - 1)]        
-    dec_convs = nn.Sequential(*conv_layers)
-    
-    return dec_convs
-
 class SpatialDecoder2D(nn.Module):
     def __init__(self,dec,im_size):
         super(SpatialDecoder2D,self).__init__()
@@ -47,7 +35,7 @@ class SpatialDecoder2D(nn.Module):
 
         return x
 
-class Decoder1D(nn.Module):
+class SpatialDecoder1D(nn.Module):
     def __init__(self,cnn,nfs,activation,im_size):
         super(Decoder1D,self).__init__()
         self.cnn = cnn
