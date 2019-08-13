@@ -6,7 +6,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 class VisionAELearner(AutoEncoderLearner):
-    def plot_rec(self,x=None,n=5,gray = True):
+    def plot_rec(self,x=None,n=5,gray = True,return_fig=False):
         """Plot a """
         self.model.cpu()
         if not isinstance(x,torch.Tensor):
@@ -40,4 +40,5 @@ class VisionAELearner(AutoEncoderLearner):
             ax[i][1].imshow(img_r,cmap = "gray")
             ax[i][1].set_title("Reconstruction")
             
-        return fig
+        if return_fig:
+            return fig

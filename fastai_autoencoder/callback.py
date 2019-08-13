@@ -1,7 +1,7 @@
 from fastai.callbacks import LearnerCallback
 from fastai.basic_train import Learner
 from fastai.callbacks.hooks import HookCallback
-from fastai_autoencoder.model import VAELinear
+from fastai_autoencoder.bottleneck import VAELinear
 import torch.nn as nn
 
 def get_layer(m,buffer,layer):
@@ -24,7 +24,37 @@ class ReplaceTargetCallback(LearnerCallback):
             return {"last_input" : last_input,"last_target" : last_input}
         else:
             return {"last_input" : last_input,"last_target" : last_target} 
-
+        
+class VQVAEHook(HookCallback):
+    """Callback to modify the loss of the learner to compute the loss against x"""
+    _order = 10000
+    
+    def __init__(self, learn,beta = 1,do_remove:bool=True):
+        super().__init__(learn)
+        
+        # We look for the VAE bottleneck layer
+        self.learn = learn
+        
+        self.loss = []
+        
+        buffer = []
+        get_layer(learn.model,buffer,VQVAEBottleneck)
+        if not buffer:
+            raise NotImplementedError("No VQ VAE Bottleneck found")
+            
+        self.modules = buffer
+        self.do_remove = do_remove
+        
+    def on_backward_begin(self,last_loss,**kwargs):
+        total_loss = last_loss + self.current_loss
+        
+        return {"last_loss" : total_loss}
+    
+    def hook(self, m:nn.Module, i, o):
+        "Save the latents of the bottleneck"
+        self.current_loss = m.loss
+        self.loss.append(m.loss)
+        
 class VAEHook(HookCallback):
     """Hook to register the parameters of the latents during the forward pass to compute the KL term of the VAE"""
     
