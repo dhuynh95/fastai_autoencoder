@@ -3,7 +3,7 @@ import torch
 from fastai_autoencoder.util import PointwiseConv
 
 class SpatialDecoder2D(nn.Module):
-    def __init__(self,dec,im_size):
+    def __init__(self,dec,im_size,scale_factor=1):
         super(SpatialDecoder2D,self).__init__()
         self.dec = dec
         
@@ -11,6 +11,9 @@ class SpatialDecoder2D(nn.Module):
         self.im_size = im_size
         x = torch.linspace(-1, 1, im_size)
         y = torch.linspace(-1, 1, im_size)
+        
+        x = x * scale_factor
+        y = y * scale_factor
         x_grid, y_grid = torch.meshgrid(x, y)
         # Add as constant, with extra dims for N and C
         self.register_buffer('x_grid', x_grid.view((1, 1) + x_grid.shape))

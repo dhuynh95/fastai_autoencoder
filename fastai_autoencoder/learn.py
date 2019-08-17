@@ -42,14 +42,14 @@ class AutoEncoderLearner(Learner):
         else:
             # First we discretize x and turn it from (B,1,H,W) to (B,H,W)
             x = (x * 256).long().squeeze(1)
-            l = self.rec_loss(x_rec,x).view(bs,-1).mean()
+            l = self.rec_loss(x_rec,x).view(bs,-1).sum(dim=-1).mean()
         return l
     
     def decode(self,z):
         x_rec = self.dec(z)
         return x_rec
     
-    def plot_2d_latents(self,ds_type:DatasetType=DatasetType.Valid, n_batch = 10):
+    def plot_2d_latents(self,ds_type:DatasetType=DatasetType.Valid, n_batch = 10,return_fig=False):
         """Plot a 2D map of latents colored by class"""
         z,y = self.get_latents(ds_type = ds_type, n_batch = n_batch)
         z,y = z.numpy(), y.numpy()
@@ -57,10 +57,11 @@ class AutoEncoderLearner(Learner):
         print("Computing the TSNE projection")
         zs = TSNE(n_components=2).fit_transform(z)
 
-        plt.figure(figsize = (16,12))
-        plt.scatter(zs[:,0],z[:,1],c = y)
-        plt.title("TSNE projection of latents on two dimensions")
-        plt.show()
+        fig,ax = plt.subplots(1,figsize = (16,12))
+        ax.scatter(zs[:,0],z[:,1],c = y)
+        ax.set_title("TSNE projection of latents on two dimensions")
+        if return_fig:
+            return fig
         
     def plot_rec(self,x=None,i=0,sz = 64,gray = True):
         """Plot a """

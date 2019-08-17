@@ -3,6 +3,8 @@ from fastai.basic_train import Learner
 from fastai.callbacks.hooks import HookCallback
 from fastai_autoencoder.bottleneck import VAELinear
 import torch.nn as nn
+import torch
+import numpy as np
 
 def get_layer(m,buffer,layer):
     """Function which takes a list and a model append the elements"""
@@ -95,3 +97,54 @@ class VAEHook(HookCallback):
         mu,logvar = o
         self.learn.mu = mu
         self.learn.logvar = logvar
+
+class HighFrequencyLoss(LearnerCallback):
+    def __init__(self, learn,low_ratio = 0.15,mul=5,threshold = 1e-2,debug=False):
+        super().__init__(learn)
+        
+        # We look for the VAE bottleneck layer
+        assert low_ratio < 0.5, "Low ratio too high"
+        self.low_ratio = low_ratio
+        self.window_size = int(28 * low_ratio)
+        self.mul = mul
+        self.threshold = threshold
+        self.debug = debug
+        
+    def on_backward_begin(self,last_loss,**kwargs):
+        
+        x = kwargs["last_input"]
+        x_rec = kwargs["last_output"]
+        
+        # First we get the fft of the batch
+        f = np.fft.fft2(x.squeeze(1))
+        fshift = np.fft.fftshift(f,axes=(1,2))
+
+        # We zero the low frequencies
+        rows, cols = x.shape[-2], x.shape[-1]
+        crow,ccol = rows//2 , cols//2
+        fshift[:,crow-self.window_size:crow+self.window_size, ccol-self.window_size:ccol+self.window_size] = 0
+        
+        # We reconstruct the image
+        f_ishift = np.fft.ifftshift(fshift,axes=(1,2))
+        img_back = np.fft.ifft2(f_ishift)
+        
+        # We keep the indexes of pixels with high values
+        img_back = np.abs(img_back)
+        img_back = img_back / img_back.sum(axis=(1,2),keepdims=True)
+        idx = torch.ByteTensor(img_back > self.threshold).cuda()
+        
+        # We select only the pixels with high values
+        x_hf = torch.masked_select(x.view_as(idx),idx)
+        x_rec_hf = torch.masked_select(x_rec.view_as(idx),idx)
+        
+        bs = x.shape[0]
+        hf_loss = self.mul * self.learn.rec_loss(x_hf,x_rec_hf).sum() / bs
+        total_loss = last_loss + hf_loss
+        
+        output = {"last_loss" : total_loss}
+        if self.debug:
+            print(f"Using High Frequency Loss with ratio {self.low_ratio} and multiplication factor {self.mul}")
+            print(f"Loss before : {last_loss}")
+            print(f"High frequency loss : {hf_loss}")
+            print(output)
+        return output
