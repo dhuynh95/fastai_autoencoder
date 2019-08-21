@@ -99,7 +99,7 @@ class VAEHook(HookCallback):
         self.learn.logvar = logvar
 
 class HighFrequencyLoss(LearnerCallback):
-    def __init__(self, learn,low_ratio = 0.15,mul=5,threshold = 1e-2,debug=False):
+    def __init__(self, learn,low_ratio = 0.15,mul=5,threshold = 1e-2,scaling=False,debug=False):
         super().__init__(learn)
         
         # We look for the VAE bottleneck layer
@@ -108,6 +108,7 @@ class HighFrequencyLoss(LearnerCallback):
         self.window_size = int(28 * low_ratio)
         self.mul = mul
         self.threshold = threshold
+        self.scaling = scaling
         self.debug = debug
         
     def on_backward_begin(self,last_loss,**kwargs):
@@ -131,14 +132,19 @@ class HighFrequencyLoss(LearnerCallback):
         # We keep the indexes of pixels with high values
         img_back = np.abs(img_back)
         img_back = img_back / img_back.sum(axis=(1,2),keepdims=True)
-        idx = torch.ByteTensor(img_back > self.threshold).cuda()
+        idx = (img_back > self.threshold)
+        
+        img_back = torch.tensor(img_back[idx]).cuda()
+        mask = torch.ByteTensor(idx).cuda()
         
         # We select only the pixels with high values
-        x_hf = torch.masked_select(x.view_as(idx),idx)
-        x_rec_hf = torch.masked_select(x_rec.view_as(idx),idx)
+        x_hf = torch.masked_select(x.view_as(mask),mask)
+        x_rec_hf = torch.masked_select(x_rec.view_as(mask),mask)
         
         bs = x.shape[0]
-        hf_loss = self.mul * self.learn.rec_loss(x_hf,x_rec_hf).sum() / bs
+        diff = self.learn.rec_loss(x_hf,x_rec_hf)
+        if self.scaling: diff *= img_back
+        hf_loss = self.mul * diff.sum() / bs
         total_loss = last_loss + hf_loss
         
         output = {"last_loss" : total_loss}

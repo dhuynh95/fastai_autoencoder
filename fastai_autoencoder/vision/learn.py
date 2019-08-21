@@ -14,7 +14,7 @@ def register_output(m,i,o):
     return o
 
 class VisionAELearner(AutoEncoderLearner):
-    def plot_rec(self,x=None,idx=None,n=5,gray = True,return_fig=False):
+    def plot_rec(self,x=None,random=False,n=5,gray = True,return_fig=False):
         """Plot a """
         self.model.cpu()
         if not isinstance(x,torch.Tensor):
@@ -24,8 +24,10 @@ class VisionAELearner(AutoEncoderLearner):
         
         assert n < bs, f"Number of images to plot larger than batch size {n}>{bs}"
         
-        if not idx:
+        if random:
             idx = np.random.choice(bs,n,replace = False)
+        else:
+            idx = np.arange(n)
         x = x[idx]
         
         x_rec = self.model(x)
@@ -52,8 +54,11 @@ class VisionAELearner(AutoEncoderLearner):
         self.model.cuda()
         if return_fig:
             return fig
+        
+    def set_dec_modules(self,dec_modules:list):
+        self.dec_modules = dec_modules
 
-    def plot_rec_steps(self,x=None,idx=None,n=5,gray = True,return_fig=False):
+    def plot_rec_steps(self,x=None,random=False,n=5,gray = True,return_fig=False):
         """Plot a """
         self.model.cpu()
         if not isinstance(x,torch.Tensor):
@@ -63,11 +68,13 @@ class VisionAELearner(AutoEncoderLearner):
         
         assert n < bs, f"Number of images to plot larger than batch size {n}>{bs}"
         
-        if not idx:
+        if random:
             idx = np.random.choice(bs,n,replace = False)
+        else:
+            idx = np.arange(n)
         x = x[idx]
         
-        modules = list(self.dec.dec.children())
+        modules = self.dec_modules
         
         with Hooks(modules,register_output) as hooks:
             x_rec = self.model(x)

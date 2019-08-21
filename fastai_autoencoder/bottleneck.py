@@ -90,7 +90,7 @@ class VQVAEBottleneck(nn.Module):
         return quantized
 
 class VAEBottleneck(nn.Module):
-    def __init__(self,nfs:list,activation):
+    def __init__(self,nfs:list):
         super(VAEBottleneck,self).__init__()
 
         n = len(nfs)
