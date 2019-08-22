@@ -99,17 +99,18 @@ class VAEHook(HookCallback):
         self.learn.logvar = logvar
 
 class HighFrequencyLoss(LearnerCallback):
-    def __init__(self, learn,low_ratio = 0.15,mul=5,threshold = 1e-2,scaling=False,debug=False):
+    def __init__(self, learn,low_ratio = 0.15,threshold = 1e-2,scaling=True,debug=False):
         super().__init__(learn)
         
         # We look for the VAE bottleneck layer
         assert low_ratio < 0.5, "Low ratio too high"
         self.low_ratio = low_ratio
         self.window_size = int(28 * low_ratio)
-        self.mul = mul
         self.threshold = threshold
         self.scaling = scaling
         self.debug = debug
+        
+    def get_exponent(self,x): return np.floor(np.log10(np.abs(x))).astype(int)
         
     def on_backward_begin(self,last_loss,**kwargs):
         
@@ -142,14 +143,20 @@ class HighFrequencyLoss(LearnerCallback):
         x_rec_hf = torch.masked_select(x_rec.view_as(mask),mask)
         
         bs = x.shape[0]
-        diff = self.learn.rec_loss(x_hf,x_rec_hf)
-        if self.scaling: diff *= img_back
-        hf_loss = self.mul * diff.sum() / bs
+        diff = img_back * self.learn.rec_loss(x_hf,x_rec_hf)
+        
+        hf_loss = diff.sum() / bs
+        
+        # If we scale it we put both losses on the same scale
+        if self.scaling:
+            rescale_factor = 10**(self.get_exponent(last_loss.item()) - self.get_exponent(hf_loss.item()))
+            hf_loss *= rescale_factor
+            
         total_loss = last_loss + hf_loss
         
         output = {"last_loss" : total_loss}
         if self.debug:
-            print(f"Using High Frequency Loss with ratio {self.low_ratio} and multiplication factor {self.mul}")
+            print(f"Using High Frequency Loss")
             print(f"Loss before : {last_loss}")
             print(f"High frequency loss : {hf_loss}")
             print(output)
