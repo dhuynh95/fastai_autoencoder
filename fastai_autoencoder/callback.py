@@ -99,7 +99,7 @@ class VAEHook(HookCallback):
         self.learn.logvar = logvar
 
 class HighFrequencyLoss(LearnerCallback):
-    def __init__(self, learn,low_ratio = 0.15,threshold = 1e-2,scaling=True,debug=False):
+    def __init__(self, learn,low_ratio = 0.15,threshold = 1e-2,mul=1,scaling=True,debug=False):
         super().__init__(learn)
         
         # We look for the VAE bottleneck layer
@@ -108,6 +108,7 @@ class HighFrequencyLoss(LearnerCallback):
         self.window_size = int(28 * low_ratio)
         self.threshold = threshold
         self.scaling = scaling
+        self.mul = mul
         self.debug = debug
         
     def get_exponent(self,x): return np.floor(np.log10(np.abs(x))).astype(int)
@@ -152,6 +153,7 @@ class HighFrequencyLoss(LearnerCallback):
             rescale_factor = 10**(self.get_exponent(last_loss.item()) - self.get_exponent(hf_loss.item()))
             hf_loss *= rescale_factor
             
+        hf_loss *= self.mul
         total_loss = last_loss + hf_loss
         
         output = {"last_loss" : total_loss}
