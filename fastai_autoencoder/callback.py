@@ -150,7 +150,8 @@ class HighFrequencyLoss(LearnerCallback):
         
         # If we scale it we put both losses on the same scale
         if self.scaling:
-            rescale_factor = 10**(self.get_exponent(last_loss.item()) - self.get_exponent(hf_loss.item()))
+            exponent = max(0,self.get_exponent(last_loss.item()) - self.get_exponent(hf_loss.item()))
+            rescale_factor = 10**(exponent)
             hf_loss *= rescale_factor
             
         hf_loss *= self.mul
