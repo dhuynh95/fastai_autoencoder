@@ -58,7 +58,7 @@ class AutoEncoderLearner(Learner):
         zs = TSNE(n_components=2).fit_transform(z)
 
         fig,ax = plt.subplots(1,figsize = (16,12))
-        ax.scatter(zs[:,0],z[:,1],c = y)
+        ax.scatter(zs[:,0],zs[:,1],c = y)
         ax.set_title("TSNE projection of latents on two dimensions")
         if return_fig:
             return fig
